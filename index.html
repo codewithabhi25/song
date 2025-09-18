@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pro YouTube Playlist — Advanced</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1115; --panel:#111216; --muted:#9aa3b2; --accent:#1db954; --accent-2:#1ed760;
+}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,Arial; margin:0; height:100vh; background:linear-gradient(180deg,#071018 0%, #0f1115 100%); color:#e6eef3; display:flex;}
+.app{display:flex;flex:1;}
+
+/* Sidebar */
+.sidebar{width:260px;background:linear-gradient(180deg,#0f1316,#0b0d10);padding:20px;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,0.03)}
+.logo{font-weight:700;color:var(--accent);font-size:18px;margin-bottom:14px}
+.input, .btn, select{width:100%;padding:8px;border-radius:10px;border:none;margin-bottom:10px}
+.btn{background:var(--accent);color:#04120b;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.03)}
+.playlists{flex:1;overflow:auto;margin-top:6px}
+.playlist-item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;margin-bottom:8px;background:linear-gradient(90deg,rgba(255,255,255,0.01),transparent);cursor:pointer}
+.playlist-item img{width:44px;height:44px;border-radius:6px;object-fit:cover}
+.playlist-item strong{font-size:14px}
+.playlist-item .count{margin-left:auto;color:var(--muted);font-size:12px}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;padding:22px;}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.search{display:flex;gap:8px;align-items:center}
+.search input{padding:10px;border-radius:10px;border:none;width:360px;background:rgba(255,255,255,0.02);color:inherit}
+.grid{display:grid;grid-template-columns:1fr;gap:12px;flex:1;overflow:auto}
+.panel{background:linear-gradient(180deg,#0b0f12,#0a0c0f);padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.02)}
+.songs{display:flex;flex-direction:column;gap:8px}
+.song{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.01));}
+.song.dragging{opacity:0.5}
+.thumb{width:64px;height:64px;border-radius:8px;flex:0 0 64px;background:#222;display:flex;align-items:center;justify-content:center}
+.meta{flex:1}
+.meta .title{font-weight:600}
+.meta .sub{color:var(--muted);font-size:13px}
+.actions{display:flex;gap:8px}
+.icon-btn{background:transparent;border:1px solid rgba(255,255,255,0.03);padding:8px;border-radius:8px;color:var(--muted);cursor:pointer}
+.icon-btn.play{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#04120b;border:none}
+
+/* Now playing bar */
+.nowbar{height:110px;position:fixed;left:0;right:0;bottom:0;background:linear-gradient(180deg,#080a0c,#050607);display:flex;align-items:center;gap:18px;padding:12px 24px;border-top:1px solid rgba(255,255,255,0.02)}
+.now-art{width:84px;height:84px;border-radius:10px;object-fit:cover;background:#111;flex:0 0 84px}
+.now-info{flex:1}
+.now-info .title{font-weight:700}
+.controls{display:flex;align-items:center;gap:8px;margin-top:8px}
+.button{width:44px;height:44px;border-radius:50%;display:inline-grid;place-items:center;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);cursor:pointer}
+.button.play{width:58px;height:58px;background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#04120b;border:none}
+.progress-wrap{position:relative;flex:1;margin:0 18px}
+.progress{height:8px;background:rgba(255,255,255,0.03);border-radius:6px;overflow:hidden}
+.progress .bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));}
+.time{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-top:6px}
+.volume{width:140px;display:flex;gap:8px;align-items:center}
+.volume input{width:100%}
+.lyrics{max-height:90px;overflow:auto;padding:8px;border-radius:8px;background:rgba(255,255,255,0.01);color:var(--muted);font-size:14px}
+.placeholder{height:74px;border:2px dashed rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted)}
+/* small active marker */
+.playlist-item.active{outline:1px solid rgba(30,215,96,0.12)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="logo">ProYT Player</div>
+    <input id="folderNameInput" class="input" placeholder="New playlist name">
+    <button id="createFolderBtn" class="btn">Create Playlist</button>
+    <select id="folderSelect" class="input"><option value="">Select playlist</option></select>
+    <input id="youtubeInput" class="input" placeholder="YouTube link or video id">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button id="addSongBtn" class="btn">Add</button>
+      <button id="uploadLrcBtn" class="btn ghost">Upload LRC</button>
+    </div>
+    <div class="playlists" id="playlists"></div>
+  </div>
+
+  <div class="main">
+    <div class="header">
+      <div style="font-weight:700;font-size:18px">Songs</div>
+      <div class="search"><input id="searchInput" placeholder="Search songs or playlists"></div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <div id="songContainer" class="songs"></div>
+      </div>
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-weight:600">Lyrics</div>
+          <div style="color:var(--muted);font-size:13px">Upload .lrc for synced lyrics</div>
+        </div>
+        <div id="lyricsBox" class="lyrics">No lyrics loaded</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Now playing bar -->
+<div class="nowbar">
+  <img id="nowArt" class="now-art" src="https://via.placeholder.com/84x84.png?text=Art">
+  <div class="now-info">
+    <div class="title" id="nowTitle">Nothing playing</div>
+    <div class="subtitle" id="nowArtist">—</div>
+    <div class="controls">
+      <div class="button" id="prevBtn">⏮</div>
+      <div class="button" id="rewindBtn">⏪</div>
+      <div class="button play" id="playBtn">▶</div>
+      <div class="button" id="forwardBtn">⏩</div>
+      <div class="button" id="nextBtn">⏭</div>
+      <div style="width:18px"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-left:12px">
+        <div id="vis" style="display:flex;gap:4px;align-items:flex-end">
+          <div class="bar" style="height:50%"></div>
+          <div class="bar" style="height:70%"></div>
+          <div class="bar" style="height:45%"></div>
+          <div class="bar" style="height:80%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress" id="progressBar"><div class="bar" id="progressFill"></div></div>
+    <div class="time"><div id="curTime">0:00</div><div id="durTime">0:00</div></div>
+  </div>
+  <div class="volume">
+    <div style="color:var(--muted)">Vol</div>
+    <input id="volumeSlider" type="range" min="0" max="100" value="100">
+  </div>
+</div>
+
+<!-- hidden file input for LRC -->
+<input id="lrcFile" type="file" accept=".lrc" style="display:none" />
+
+<div id="playerHolder"></div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+/* ---- Pro player (no external API key) ---- */
+let player;
+let playerReady = false;
+let state = {
+  folders: JSON.parse(localStorage.getItem('proyt.folders') || '[]'),
+  curFolder: 0, curIndex: 0, shuffle: false, loop: false, volume: 100
+};
+
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+function getVideoId(url){
+  if (!url) return '';
+  url = url.trim();
+  // if already an 11-char id
+  if (/^[A-Za-z0-9_-]{11}$/.test(url)) return url;
+  // try regex common forms
+  let m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/i);
+  if (m) return m[1];
+  // try URL parsing for v= param
+  try {
+    const u = new URL(url.startsWith('http') ? url : 'https://'+url);
+    const v = u.searchParams.get('v');
+    if (v && /^[A-Za-z0-9_-]{11}$/.test(v)) return v;
+  } catch(e){}
+  // fallback: return raw trimmed string (may be an id)
+  return url;
+}
+function thumbFor(id){ return 'https://i.ytimg.com/vi/' + encodeURIComponent(id) + '/hqdefault.jpg'; }
+
+function save(){ localStorage.setItem('proyt.folders', JSON.stringify(state.folders)); }
+
+/* YouTube iFrame */
+function onYouTubeIframeAPIReady(){
+  player = new YT.Player('playerHolder', {
+    height: 0, width: 0, videoId: '', playerVars: { autoplay: 0, playsinline: 1 },
+    events: { onReady: onPlayerReady, onStateChange: onPlayerStateChange }
+  });
+}
+function onPlayerReady(){
+  playerReady = true;
+  if (player.setVolume) player.setVolume(state.volume);
+  renderAll();
+  if (state.folders.length && state.folders[state.curFolder] && state.folders[state.curFolder].songs.length)
+    loadSong(state.curFolder, state.curIndex, false);
+}
+
+/* Rendering UI */
+function renderAll(){
+  renderPlaylists();
+  renderSongList();
+  updateNowPlayingUI();
+  renderLyrics();
+}
+
+function renderPlaylists(){
+  const container = $('#playlists');
+  container.innerHTML = '';
+  const select = $('#folderSelect');
+  select.innerHTML = '<option value="">Select playlist</option>';
+  state.folders.forEach((p, i) => {
+    const el = document.createElement('div');
+    el.className = 'playlist-item' + (i === state.curFolder ? ' active' : '');
+    el.dataset.index = i;
+    el.innerHTML = `<img src="${thumbFor(p.seed || p.name)}" alt><strong>${escapeHtml(p.name)}</strong><span class="count">${p.songs.length}</span>`;
+    el.onclick = () => { state.curFolder = i; select.value = String(i); renderSongList(); renderPlaylists(); save(); };
+    // allow dropping onto a specific playlist
+    el.addEventListener('dragover', e => e.preventDefault());
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      try {
+        const payload = JSON.parse(e.dataTransfer.getData('text/plain'));
+        if (payload.fromFolder !== undefined){
+          const song = state.folders[payload.fromFolder].songs.splice(payload.fromIndex, 1)[0];
+          if (song) {
+            state.folders[i].songs.push(song);
+            save(); renderAll();
+          }
+        }
+      } catch(err){}
+    });
+    container.appendChild(el);
+    select.innerHTML += `<option value="${i}">${escapeHtml(p.name)}</option>`;
+  });
+  // keep select in sync with state.curFolder
+  if (select) select.value = (state.folders[state.curFolder] ? String(state.curFolder) : '');
+}
+
+function renderSongList(){
+  const where = $('#songContainer');
+  where.innerHTML = '';
+  const folder = state.folders[state.curFolder];
+  if (!folder) { where.innerHTML = '<div class="placeholder">Create a playlist and add songs</div>'; return; }
+  folder.songs.forEach((s, si) => {
+    const div = document.createElement('div');
+    div.className = 'song';
+    div.draggable = true;
+    div.dataset.si = si;
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="thumb"><img src="${thumbFor(s.id)}" style="width:100%;height:100%;border-radius:6px;object-fit:cover"></div>
+        <div class="meta"><div class="title">${escapeHtml(s.title || s.id)}</div><div class="sub">${escapeHtml(s.artist || '')}</div></div>
+      </div>
+      <div class="actions"><button class="icon-btn play small">Play</button><button class="icon-btn remove small">Remove</button></div>
+    `;
+    div.querySelector('.play').addEventListener('click', () => { loadSong(state.curFolder, si, true); });
+    div.querySelector('.remove').addEventListener('click', () => { folder.songs.splice(si, 1); save(); renderAll(); });
+    // drag/drop
+    div.addEventListener('dragstart', (e) => { div.classList.add('dragging'); e.dataTransfer.setData('text/plain', JSON.stringify({fromFolder: state.curFolder, fromIndex: si})); });
+    div.addEventListener('dragend', () => { div.classList.remove('dragging'); });
+    div.addEventListener('dragover', (e) => { e.preventDefault(); div.style.border = '1px dashed rgba(255,255,255,0.06)'; });
+    div.addEventListener('dragleave', () => { div.style.border = 'none'; });
+    div.addEventListener('drop', (e) => { e.preventDefault(); div.style.border = 'none'; try { const payload = JSON.parse(e.dataTransfer.getData('text/plain')); handleDropOnSong(payload, state.curFolder, si); } catch (err){} });
+    where.appendChild(div);
+  });
+}
+
+/* Drag & Drop handlers */
+function handleDropOnSong(payload, toFolder, toIndex){
+  const { fromFolder, fromIndex } = payload;
+  if (fromFolder === undefined) return;
+  const song = state.folders[fromFolder].songs.splice(fromIndex, 1)[0];
+  if (!song) return;
+  if (fromFolder === toFolder && fromIndex < toIndex) toIndex--;
+  state.folders[toFolder].songs.splice(toIndex, 0, song);
+  save(); renderAll();
+}
+
+/* Create playlist & add songs */
+$('#createFolderBtn').addEventListener('click', () => {
+  const name = $('#folderNameInput').value.trim() || ('Playlist ' + (state.folders.length + 1));
+  state.folders.push({ name, seed: name, songs: [] });
+  $('#folderNameInput').value = '';
+  state.curFolder = state.folders.length - 1; // switch to new playlist
+  save(); renderAll();
+  const select = $('#folderSelect');
+  if (select) select.value = String(state.curFolder);
+  renderSongList();
+});
+
+$('#addSongBtn').addEventListener('click', () => {
+  const v = $('#youtubeInput').value.trim();
+  const id = getVideoId(v);
+  if (!id) return alert('Paste a YouTube link or a video id (11 chars).');
+  const selVal = $('#folderSelect').value;
+  const folderIdx = (selVal === '' || selVal == null) ? state.curFolder : +selVal;
+  if (!Number.isInteger(folderIdx) || !state.folders[folderIdx]) return alert('Select a playlist or create one first');
+  const folder = state.folders[folderIdx];
+  folder.songs.push({ id, title: id, artist: '', lrc: null });
+  save(); $('#youtubeInput').value = ''; renderSongList(); loadSong(folderIdx, folder.songs.length - 1, true);
+});
+
+/* Upload LRC for current song */
+$('#uploadLrcBtn').addEventListener('click', () => $('#lrcFile').click());
+$('#lrcFile').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const text = await f.text();
+  const parsed = parseLRC(text);
+  const folder = state.folders[state.curFolder];
+  if (!folder || !folder.songs[state.curIndex]) return alert('Play a song first to attach LRC');
+  folder.songs[state.curIndex].lrc = parsed;
+  save(); alert('LRC attached to current song');
+  $('#lrcFile').value = '';
+  renderLyrics();
+});
+function parseLRC(txt){
+  const lines = txt.split(/\r?\n/);
+  const res = [];
+  for (const ln of lines){
+    const m = ln.match(/\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\](.*)/);
+    if (m){
+      const t = (+m[1])*60 + (+m[2]) + (m[3]? +('0.' + m[3]) : 0);
+      res.push({ time: t, text: m[4].trim() });
+    }
+  }
+  return res.sort((a,b) => a.time - b.time);
+}
+
+/* Load & play */
+function loadSong(folderIdx, index, autoPlay = true){
+  if (!playerReady) return setTimeout(() => loadSong(folderIdx, index, autoPlay), 200);
+  if (!state.folders[folderIdx] || !state.folders[folderIdx].songs[index]) return;
+  state.curFolder = folderIdx; state.curIndex = index;
+  const s = state.folders[folderIdx].songs[index];
+  player.loadVideoById(s.id);
+  if (autoPlay) { player.playVideo(); $('#playBtn').textContent = '▮▮'; }
+  updateNowPlayingUI(); renderSongList(); renderPlaylists(); renderLyrics(); save();
+}
+function updateNowPlayingUI(){
+  const f = state.folders[state.curFolder];
+  if (!f || !f.songs[state.curIndex]){ $('#nowTitle').textContent = 'Nothing playing'; $('#nowArtist').textContent = '—'; $('#nowArt').src = 'https://via.placeholder.com/84x84.png?text=Art'; return; }
+  const s = f.songs[state.curIndex];
+  $('#nowTitle').textContent = s.title || s.id;
+  $('#nowArtist').textContent = s.artist || '';
+  $('#nowArt').src = thumbFor(s.id);
+}
+
+/* Progress */
+const progressFill = document.getElementById('progressFill');
+const curTime = document.getElementById('curTime');
+const durTime = document.getElementById('durTime');
+function updateProgress(){
+  if (player && player.getDuration && player.getCurrentTime){
+    const d = player.getDuration();
+    const c = player.getCurrentTime();
+    if (d > 0){
+      progressFill.style.width = Math.max(0, Math.min(100, (c/d)*100)) + '%';
+      curTime.textContent = formatTime(c);
+      durTime.textContent = formatTime(d);
+    }
+  }
+  requestAnimationFrame(updateProgress);
+}
+function formatTime(t){ if (!t || isNaN(t)) return '0:00'; const m = Math.floor(t/60); const s = Math.floor(t%60); return m + ':' + (s < 10 ? '0' : '') + s; }
+$('#progressBar').addEventListener('click', (e) => {
+  if (!player || !player.getDuration) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const p = (e.clientX - r.left) / r.width;
+  player.seekTo(player.getDuration() * p, true);
+});
+
+/* Controls */
+$('#playBtn').addEventListener('click', () => {
+  if (!player) return;
+  const st = player.getPlayerState();
+  if (st === YT.PlayerState.PLAYING) { player.pauseVideo(); $('#playBtn').textContent = '▶'; }
+  else { player.playVideo(); $('#playBtn').textContent = '▮▮'; }
+});
+$('#nextBtn').addEventListener('click', () => {
+  const f = state.folders[state.curFolder]; if (!f || !f.songs.length) return;
+  if (state.shuffle) state.curIndex = Math.floor(Math.random() * f.songs.length);
+  else state.curIndex = (state.curIndex + 1) % f.songs.length;
+  loadSong(state.curFolder, state.curIndex, true);
+});
+$('#prevBtn').addEventListener('click', () => {
+  const f = state.folders[state.curFolder]; if (!f || !f.songs.length) return;
+  state.curIndex = (state.curIndex - 1 + f.songs.length) % f.songs.length;
+  loadSong(state.curFolder, state.curIndex, true);
+});
+$('#rewindBtn').addEventListener('click', () => { if (player && player.getCurrentTime) player.seekTo(Math.max(0, player.getCurrentTime() - 10), true); });
+$('#forwardBtn').addEventListener('click', () => { if (player && player.getCurrentTime) player.seekTo(player.getCurrentTime() + 10, true); });
+
+// optional buttons: only attach listeners if present in DOM
+const shuffleBtn = $('#shuffle'); if (shuffleBtn) shuffleBtn.addEventListener('click', () => { state.shuffle = !state.shuffle; shuffleBtn.style.filter = state.shuffle ? 'brightness(1.2)' : 'none'; });
+const loopBtn = $('#loop'); if (loopBtn) loopBtn.addEventListener('click', () => { state.loop = !state.loop; loopBtn.style.filter = state.loop ? 'brightness(1.2)' : 'none'; });
+
+/* Volume */
+$('#volumeSlider').addEventListener('input', (e) => {
+  const v = +e.target.value; state.volume = v; if (player && player.setVolume) player.setVolume(v);
+});
+
+/* Keyboard */
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); $('#playBtn').click(); }
+  if (e.code === 'ArrowRight') { player && player.seekTo(player.getCurrentTime() + 5, true); }
+  if (e.code === 'ArrowLeft') { player && player.seekTo(player.getCurrentTime() - 5, true); }
+  if (e.code === 'ArrowUp') { $('#volumeSlider').value = Math.min(100, +$('#volumeSlider').value + 5); $('#volumeSlider').dispatchEvent(new Event('input')); }
+  if (e.code === 'ArrowDown') { $('#volumeSlider').value = Math.max(0, +$('#volumeSlider').value - 5); $('#volumeSlider').dispatchEvent(new Event('input')); }
+});
+
+/* Player state change */
+function onPlayerStateChange(ev){
+  if (ev.data === YT.PlayerState.ENDED){
+    const f = state.folders[state.curFolder]; if (!f || !f.songs.length) return;
+    if (state.loop) { loadSong(state.curFolder, state.curIndex, true); }
+    else if (state.shuffle) { state.curIndex = Math.floor(Math.random() * f.songs.length); loadSong(state.curFolder, state.curIndex, true); }
+    else { $('#nextBtn').click(); }
+  }
+  if (ev.data === YT.PlayerState.PLAYING) $('#playBtn').textContent = '▮▮';
+  if (ev.data === YT.PlayerState.PAUSED) $('#playBtn').textContent = '▶';
+}
+
+/* Lyrics rendering & syncing */
+function renderLyrics(){
+  const f = state.folders[state.curFolder];
+  const box = $('#lyricsBox');
+  if (!f || !f.songs[state.curIndex]) { box.textContent = 'No lyrics loaded'; return; }
+  const s = f.songs[state.curIndex];
+  if (!s.lrc || !s.lrc.length){ box.textContent = 'No lyrics. Upload .lrc (use the upload button while a song is selected).'; return; }
+  box.innerHTML = s.lrc.map(l => `<div data-t="${l.time}">${escapeHtml(l.text)}</div>`).join('');
+}
+// simple HTML escape
+function escapeHtml(str){ return String(str).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* Sidebar drop to move songs into selected playlist */
+$('#playlists').addEventListener('dragover', e => e.preventDefault());
+$('#playlists').addEventListener('drop', e => {
+  e.preventDefault();
+  try {
+    const p = JSON.parse(e.dataTransfer.getData('text/plain'));
+    if (p.fromFolder !== undefined){
+      // try to find playlist under cursor, fallback to current folder
+      const el = e.target.closest('.playlist-item');
+      const targetIndex = el ? +el.dataset.index : state.curFolder;
+      if (!Number.isInteger(targetIndex) || !state.folders[targetIndex]) return;
+      const song = state.folders[p.fromFolder].songs.splice(p.fromIndex, 1)[0];
+      if (song) {
+        state.folders[targetIndex].songs.push(song);
+        save(); renderAll();
+      }
+    }
+  } catch (err){ console.error(err); }
+});
+
+/* state/load */
+function loadState(){
+  const stored = JSON.parse(localStorage.getItem('proyt.folders') || 'null');
+  if (stored) state.folders = stored;
+}
+loadState();
+
+// keep select in sync when user changes it
+const folderSelect = $('#folderSelect');
+if (folderSelect) folderSelect.addEventListener('change', (e) => {
+  const v = e.target.value;
+  if (v !== '') {
+    state.curFolder = +v;
+    renderSongList();
+    renderPlaylists();
+    save();
+  }
+});
+
+renderAll();
+updateProgress();
+
+/* Expose for debugging */
+window._proyt = { state, save, loadSong, renderAll };
+
+</script>
+</body>
+</html>
